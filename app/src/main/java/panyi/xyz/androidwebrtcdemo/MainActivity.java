@@ -138,7 +138,9 @@ public class MainActivity extends AppCompatActivity {
 
     private void connectWebsocket(){
         try {
-            final URI uri = new URI("ws://10.242.142.129:9999/signal");
+            //http://101.34.23.152:9999/
+//            final URI uri = new URI("ws://10.242.142.129:9999/signal");
+            final URI uri = new URI("ws://101.34.23.152:9999/signal");
             mWebsocket = new WebSocketClient(uri) {
                 @Override
                 public void onOpen(ServerHandshake handshakedata) {
@@ -227,16 +229,23 @@ public class MainActivity extends AppCompatActivity {
             return;
         }
 
-        PeerConnection.IceServer stun =  PeerConnection.IceServer.builder("stun:101.34.23.152:3478").createIceServer();
+        List<PeerConnection.IceServer> iceServers = new ArrayList<PeerConnection.IceServer>(2);
+//        PeerConnection.IceServer stun =  PeerConnection.IceServer.builder("stun:101.34.23.152:3478")
+//                .setTlsCertPolicy(PeerConnection.TlsCertPolicy.TLS_CERT_POLICY_INSECURE_NO_CHECK)
+//                .createIceServer();
+//        iceServers.add(stun);
+
         PeerConnection.IceServer iceServer = PeerConnection.IceServer
                 .builder("turn:101.34.23.152:3478")
+                .setTlsCertPolicy(PeerConnection.TlsCertPolicy.TLS_CERT_POLICY_INSECURE_NO_CHECK)
                 .setUsername("panyi")
                 .setPassword("123456").createIceServer();
-        List<PeerConnection.IceServer> iceServers = new ArrayList<PeerConnection.IceServer>(2);
-        iceServers.add(stun);
         iceServers.add(iceServer);
 
-        mPeerConnection = getPeerConnectionFactory().createPeerConnection(iceServers, new PeerConnectionObserverAdapter() {
+        final PeerConnection.RTCConfiguration rtcConfiguration = new PeerConnection.RTCConfiguration(iceServers);
+         rtcConfiguration.iceTransportsType = PeerConnection.IceTransportsType.RELAY;
+
+        mPeerConnection = getPeerConnectionFactory().createPeerConnection(rtcConfiguration, new PeerConnectionObserverAdapter() {
             @Override
             public void onIceCandidate(IceCandidate iceCandidate) {
                 Log.i(TAG , "onIceCandidate : " + iceCandidate.sdp);
