@@ -60,6 +60,7 @@ public class MainActivity extends AppCompatActivity {
     private static final String CMD_OFFER = "offer";
     private static final String CMD_ANSWER = "answer";
     private static final String CMD_ICECANDIDATE = "icecandidate";
+    private static final String CMD_CLOSE = "close";
 
     private View mStartBtn;
     private View mCloseBtn;
@@ -92,11 +93,21 @@ public class MainActivity extends AppCompatActivity {
                 startInitWebrtc();
             });
             mCloseBtn.setOnClickListener((v)->{
-                if(mPeerConnection != null){
-                    mPeerConnection.dispose();
-                    mPeerConnection = null;
-                }
+                closeRtc(true);
             });
+        }
+    }
+
+    public void closeRtc(boolean sendSignal){
+        if(mPeerConnection != null){
+            mPeerConnection.close();
+            mPeerConnection = null;
+        }
+        deAttachMediaStreamToView(mLocalSurfaceView , mLocalMediaStream);
+        deAttachMediaStreamToView(mRemoteSurfaceView , mRemoteMediaStream);
+
+        if(sendSignal){
+            sendSignal("close" , new JSONObject());
         }
     }
 
@@ -107,6 +118,9 @@ public class MainActivity extends AppCompatActivity {
         mCloseBtn = findViewById(R.id.close_btn);
 
         mEglBase = EglBase.create();
+
+        mLocalSurfaceView.init(mEglBase.getEglBaseContext(), null);
+        mRemoteSurfaceView.init(mEglBase.getEglBaseContext() , null);
     }
 
     private boolean requestPermission(){
@@ -139,8 +153,8 @@ public class MainActivity extends AppCompatActivity {
     private void connectWebsocket(){
         try {
             //http://101.34.23.152:9999/
-//            final URI uri = new URI("ws://10.242.142.129:9999/signal");
-            final URI uri = new URI("ws://101.34.23.152:9999/signal");
+            final URI uri = new URI("ws://10.242.142.129:9999/signal");
+//            final URI uri = new URI("ws://101.34.23.152:9999/signal");
             mWebsocket = new WebSocketClient(uri) {
                 @Override
                 public void onOpen(ServerHandshake handshakedata) {
@@ -164,6 +178,8 @@ public class MainActivity extends AppCompatActivity {
                             handleAnswer(jsonData);
                         }else if(CMD_ICECANDIDATE.equals(cmd)){
                             handleIceCandidate(jsonData);
+                        }else if(CMD_CLOSE.equals(cmd)){
+                            handleClose(jsonData);
                         }
                     } catch (JSONException e) {
                         Log.e(TAG , e.getMessage());
@@ -310,7 +326,7 @@ public class MainActivity extends AppCompatActivity {
 
     private void attachMediaStreamToView(final SurfaceViewRenderer surfaceView ,  final MediaStream mediaStream){
         mUIHandler.post(()->{
-            surfaceView.init(mEglBase.getEglBaseContext(), null);
+//            surfaceView.init(mEglBase.getEglBaseContext(), null);
             surfaceView.setScalingType(RendererCommon.ScalingType.SCALE_ASPECT_FIT);
             surfaceView.setMirror(true);
             if(mediaStream.videoTracks.size() > 0){
@@ -319,6 +335,23 @@ public class MainActivity extends AppCompatActivity {
                     track.addSink(surfaceView);
                 }//end for each
             }
+        });
+    }
+
+    private void deAttachMediaStreamToView(final SurfaceViewRenderer surfaceView ,  final MediaStream mediaStream){
+        if(surfaceView ==null || mediaStream == null){
+            return;
+        }
+
+        mUIHandler.post(()->{
+            if(mediaStream.videoTracks.size() > 0){
+                List<VideoTrack> vTracks = mediaStream.videoTracks;
+                for(VideoTrack track : vTracks){
+                    track.removeSink(surfaceView);
+                }//end for each
+            }
+
+            surfaceView.invalidate();
         });
     }
 
@@ -482,6 +515,10 @@ public class MainActivity extends AppCompatActivity {
         } catch (JSONException e) {
             e.printStackTrace();
         }
+    }
+
+    private void handleClose(JSONObject json){
+        closeRtc(false);
     }
 
     private void handleIceCandidate(JSONObject json){
